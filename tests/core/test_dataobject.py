@@ -19,6 +19,34 @@ def test_eq_wrong_type(sphere):
     assert sphere != [1, 2, 3]
 
 
+def test_polydata_strip_neq():
+    points = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [1.0, 3.0, 0.0],
+            [0.0, 3.0, 0.0],
+        ],
+    )
+    mesh1 = pv.PolyData(points, strips=(s := np.array([8, 0, 1, 2, 3, 4, 5, 6, 7])))
+
+    s = s.copy()
+    s[1:] = s[:0:-1]
+    mesh2 = pv.PolyData(points, strips=s)
+
+    assert mesh1 != mesh2
+
+    s = s.copy()
+    s[0] = 4
+    mesh3 = pv.PolyData(points, strips=s[0:5])
+
+    assert mesh1 != mesh3
+
+
 def test_uniform_eq():
     orig = examples.load_uniform()
     copy = orig.copy(deep=True)
@@ -277,14 +305,6 @@ def test_default_pickle_format():
     assert pv.PICKLE_FORMAT == 'vtk' if pv.vtk_version_info >= (9, 3) else 'xml'
 
 
-@pytest.fixture
-def _modifies_pickle_format():
-    before = pv.PICKLE_FORMAT
-    yield
-    pv.PICKLE_FORMAT = before
-
-
-@pytest.mark.usefixtures('_modifies_pickle_format')
 @pytest.mark.parametrize('pickle_format', ['vtk', 'xml', 'legacy'])
 @pytest.mark.parametrize('file_ext', ['.pkl', '.pickle', '', None])
 def test_pickle_serialize_deserialize(datasets, pickle_format, file_ext, tmp_path):
@@ -309,16 +329,8 @@ def test_pickle_serialize_deserialize(datasets, pickle_format, file_ext, tmp_pat
         for attr in dataset.__dict__:
             assert getattr(dataset_2, attr) == getattr(dataset, attr)
 
-        # check data is the same
-        for attr in ('n_cells', 'n_points', 'n_arrays'):
-            if hasattr(dataset, attr):
-                assert getattr(dataset_2, attr) == getattr(dataset, attr)
-
-        for attr in ('cells', 'points'):
-            if hasattr(dataset, attr):
-                arr_have = getattr(dataset_2, attr)
-                arr_expected = getattr(dataset, attr)
-                assert arr_have == pytest.approx(arr_expected)
+        # check data is the same:
+        assert dataset_2 == dataset
 
         for name in dataset.point_data:
             arr_have = dataset_2.point_data[name]
@@ -341,7 +353,6 @@ def n_points(dataset):
     return dataset.n_points
 
 
-@pytest.mark.usefixtures('_modifies_pickle_format')
 @pytest.mark.parametrize('pickle_format', ['vtk', 'xml', 'legacy'])
 def test_pickle_multiprocessing(datasets, pickle_format):
     if pickle_format == 'vtk' and pv.vtk_version_info < (9, 3):
@@ -355,7 +366,6 @@ def test_pickle_multiprocessing(datasets, pickle_format):
         assert r == dataset.n_points
 
 
-@pytest.mark.usefixtures('_modifies_pickle_format')
 @pytest.mark.parametrize('pickle_format', ['vtk', 'xml', 'legacy'])
 def test_pickle_multiblock(multiblock_all_with_nested_and_none, pickle_format):
     if pickle_format == 'vtk' and pv.vtk_version_info < (9, 3):
@@ -375,7 +385,6 @@ def test_pickle_multiblock(multiblock_all_with_nested_and_none, pickle_format):
         assert unpickled == multiblock
 
 
-@pytest.mark.usefixtures('_modifies_pickle_format')
 @pytest.mark.parametrize('pickle_format', ['vtk', 'xml', 'legacy'])
 def test_pickle_user_dict(sphere, pickle_format):
     if pickle_format == 'vtk' and pv.vtk_version_info < (9, 3):
@@ -391,7 +400,6 @@ def test_pickle_user_dict(sphere, pickle_format):
     assert unpickled.user_dict == user_dict
 
 
-@pytest.mark.usefixtures('_modifies_pickle_format')
 @pytest.mark.parametrize('pickle_format', ['vtk', 'xml', 'legacy'])
 def test_set_pickle_format(pickle_format):
     if pickle_format == 'vtk' and pv.vtk_version_info < (9, 3):
@@ -403,7 +411,6 @@ def test_set_pickle_format(pickle_format):
         assert pickle_format == pv.PICKLE_FORMAT
 
 
-@pytest.mark.usefixtures('_modifies_pickle_format')
 def test_pickle_invalid_format(sphere):
     match = 'Unsupported pickle format `invalid_format`.'
     with pytest.raises(ValueError, match=match):

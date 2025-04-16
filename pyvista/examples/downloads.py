@@ -94,7 +94,7 @@ else:
     # provide helpful message if pooch path is inaccessible
     if not Path(USER_DATA_PATH).is_dir():  # pragma: no cover
         try:
-            Path(USER_DATA_PATH).mkdir(exist_ok=True)
+            Path(USER_DATA_PATH).mkdir(exist_ok=True, parents=True)
             if not os.access(USER_DATA_PATH, os.W_OK):
                 raise OSError
         except (PermissionError, OSError):
@@ -4831,7 +4831,9 @@ def download_drill(load=True):  # pragma: no cover
             See this dataset in the Dataset Gallery for more info.
 
     """
-    return _download_dataset(_dataset_drill, load=load)
+    # Silence warning: unexpected data at end of line in OBJ file
+    with pyvista.vtk_verbosity('off'):
+        return _download_dataset(_dataset_drill, load=load)
 
 
 _dataset_drill = _SingleFileDownloadableDatasetLoader('drill.obj')
@@ -7803,8 +7805,8 @@ class _WholeBodyCTUtilities:  # pragma: no cover
     @staticmethod
     def add_metadata(dataset: pyvista.MultiBlock, colors_module_path: str):
         # Add color and id mappings to dataset
-        segmentations = cast(pyvista.MultiBlock, dataset['segmentations'])
-        label_names = sorted(cast(list[str], segmentations.keys()))
+        segmentations = cast('pyvista.MultiBlock', dataset['segmentations'])
+        label_names = sorted(segmentations.keys())
         names_to_colors = _WholeBodyCTUtilities.import_colors_dict(colors_module_path)
         names_to_ids = {key: i + 1 for i, key in enumerate(label_names)}
         dataset.user_dict['names_to_colors'] = names_to_colors
@@ -7817,16 +7819,16 @@ class _WholeBodyCTUtilities:  # pragma: no cover
     def label_map_from_masks(masks: pyvista.MultiBlock):
         # Create label map array from segmentation masks
         # Initialize array with background values (zeros)
-        n_points = cast(pyvista.ImageData, masks[0]).n_points
+        n_points = cast('pyvista.ImageData', masks[0]).n_points
         label_map_array = np.zeros((n_points,), dtype=np.uint8)
-        label_names = sorted(cast(list[str], masks.keys()))
+        label_names = sorted(masks.keys())
         for i, name in enumerate(label_names):
-            mask = cast(pyvista.ImageData, masks[name])
+            mask = cast('pyvista.ImageData', masks[name])
             label_map_array[mask.active_scalars == 1] = i + 1
 
         # Add scalars to a new image
         label_map_image = pyvista.ImageData()
-        label_map_image.copy_structure(cast(pyvista.ImageData, masks[0]))
+        label_map_image.copy_structure(cast('pyvista.ImageData', masks[0]))
         label_map_image['label_map'] = label_map_array  # type: ignore[assignment]
         return label_map_image
 
@@ -8501,7 +8503,9 @@ def download_nek5000(load=True):
             See this dataset in the Dataset Gallery for more info.
 
     """
-    return _download_dataset(_dataset_nek5000, load=load)
+    # Silence info messages about 2D mesh found
+    with pyvista.vtk_verbosity('off'):
+        return _download_dataset(_dataset_nek5000, load=load)
 
 
 def _nek_5000_download():  # pragma: no cover
